@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Bluetooth Device Scanner</title>
+</head>
+<body>
+  <h1>Bluetooth Device Scanner</h1>
+  <button id="scanButton">Scan for Devices</button>
+  <ul id="deviceList"></ul>
+  <button id="startReadingButton">Start Reading</button>
+  <button id="stopReadingButton">Stop Reading</button>
+  <textarea id="dataTextArea" rows="10" cols="60"></textarea>
+  <button id="saveButton">Save as CSV</button>
+
+  <script>
+    // Check if the Web Bluetooth API is supported
+    if ('bluetooth' in navigator) {
+      const scanButton = document.getElementById('scanButton');
+      const deviceList = document.getElementById('deviceList');
+      const startReadingButton = document.getElementById('startReadingButton');
+      const stopReadingButton = document.getElementById('stopReadingButton');
+      const dataTextArea = document.getElementById('dataTextArea');
+      const saveButton = document.getElementById('saveButton');
+
+      let selectedDevice;
+      let selectedCharacteristic;
+      let readingInterval;
+      let stopReading = false;
+      let dataCSV = `Time: pm25, pm10,temp,humd,co,ch4,co2,vocs\n`;
+
+      scanButton.addEventListener('click', async () => {
+        try {
+          // Request Bluetooth devices
+          const device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: ['0000ffb0-0000-1000-8000-00805f9b34fb'],
+          });
+
+          // Save the selected device
+          selectedDevice = device;
+
+          // Clear previous device list
+          deviceList.innerHTML = '';
+
+          // Display the list of devices
+          const listItem = document.createElement('li');
+          listItem.textContent = selectedDevice.name || 'Unnamed Device';
+          deviceList.appendChild(listItem);
+
+          console.log('Scan complete');
+        } catch (error) {
+          console.error('Bluetooth scan error:', error);
+        }
+      });
+
+      startReadingButton.addEventListener('click', async () => {
+        if (!selectedDevice) {
+          console.log('No device selected');
+          return;
+        }
+
+        try {
+          // Connect to the selected device
+          const server = await selectedDevice.gatt.connect();
+
+          // Get the service and characteristic you want to interact with
+          const service = await server.getPrimaryService('0000ffb0-0000-1000-8000-00805f9b34fb');
+          selectedCharacteristic = await service.getCharacteristic('0000ffb3-0000-1000-8000-00805f9b34fb');
+
+          // Start reading data at the interval of 1 second
+          //
+          readingInterval = setInterval(readData, 1000);
+
+          console.log('Reading started');
+        } catch (error) {
+          console.error('Error starting reading:', error);
+        }
+      });
+
+      stopReadingButton.addEventListener('click', () => {
+        // Stop reading data
+        clearInterval(readingInterval);
+        stopReading = true;
+
+        console.log('Reading stopped');
+      });
+
+      saveButton.addEventListener('click', () => {
+        // Save data as CSV file
+        saveDataAsCSV();
+      });
+
+      window.addEventListener('beforeunload', () => {
+        // Invoke the save function when the browser is closed
+        saveDataAsCSV();
+      });
+
+      async function readData() {
+        try {
+          if (stopReading) {
+            clearInterval(readingInterval);
+            return;
+          }
+
+          // Read data from the characteristic
+          const value = await selectedCharacteristic.readValue();
+
+          // Get the current time
+          //const currentTime = new Date().toLocaleTimeString();
+
+          const currentTime = new Date().toLocaleTimeString('en-US', {
+            timeZone: 'Asia/Seoul',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+            hour12: true
+          });        
+
+          // Convert the value to an array of integers
+          const data = new Uint8Array(value.buffer);
+
+          arr = Array.from(data);
+          var pm25 = arr[0]*256+arr[1];
+          var pm10 = arr[2]*256+arr[3];
+          var temp = parseInt((arr[4] * 256 + arr[5]) / 10)
+          var humd = parseInt((arr[6] * 256 + arr[7]) / 10)
+          var co2 = arr[14] * 256 + arr[15];
+          var vocs = arr[16] * 256 + arr[17];
+          var co = arr[8] * 256 + arr[9];
+          var ch4 = arr[10] * 256 + arr[11];
+
+
+          // Append the value and writing time to the textarea
+          //dataTextArea.value += `Time: ${currentTime}, Data: [${Array.from(data)}]\n`;
+
+
+
+          //dataTextArea.value += `Time: ${currentTime}, Data: [${Array.from(data)}]\n`;
+          var _value = `Time: ${currentTime}, ${pm25}, ${pm10},${temp},${humd},${co},${ch4},${co2},${vocs}\n`;
+          dataTextArea.value += _value;
+
+          // Append the data to the CSV string
+          //dataCSV += `${currentTime},${Array.from(data).join(',')}\n`;
+          dataCSV += _value;
+
+          // Scroll to the bottom of the textarea
+          dataTextArea.scrollTop = dataTextArea.scrollHeight;
+
+          console.log('Data retrieved:', value);
+        } catch (error) {
+          console.error('Error reading data:', error);
+        }
+      }
+
+      function saveDataAsCSV() {
+        // Save data as CSV file
+        const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(dataCSV);
+        const link = document.createElement('a');
+        link.setAttribute('href', csvContent);
+        link.setAttribute('download', 'bluetooth_data.csv');
+        link.click();
+      }
+    } else {
+      console.error('Web Bluetooth API is not supported in this browser.');
+    }
+  </script>
+</body>
+</html>
