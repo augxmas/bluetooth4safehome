@@ -11,8 +11,144 @@
   <button id="stopReadingButton">Stop Reading</button>
   <textarea id="dataTextArea" rows="10" cols="60"></textarea>
   <button id="saveButton">Save as CSV</button>
+  <button type="button" onclick="getLocation()">Get Coordinates</button>
+
+  <form id="dataForm">
+    <label for="writer">Writer:</label>
+    <input type="text" id="writer" value="홍길동"><br>
+
+    <label for="serialNumber">Serial Number:</label>
+    <input type="text" id="serialNumber" value=""><br>
+
+    <label for="Latitude">Latitude:</label>
+    <input type="text" id="lat"><br>
+
+    <label for="Longitude">Longitude:</label>
+    <input type="text" id="lng"><br>
+
+
+    <label for="customer">Customer:</label>
+    <input type="text" id="customer"><br>
+
+
+    <label for="bizType">Business Type:</label>
+    <input type="text" id="bizType"><br>
+
+    <label for="floor">Floor:</label>
+    <input type="text" id="floor"><br>
+
+    <label for="size">Size:</label>
+    <input type="text" id="size"><br>
+
+    <label for="size">People:</label>
+    <input type="text" id="people"><br>
+
+
+    <label for="remark">Remark:</label>
+    <input type="text" id="remark"><br>
+
+    <button type="button" onclick="saveData()">Save</button>
+  </form>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script>
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(showPosition, showError);
+      } else {
+        console.log('Geolocation is not supported by this browser.');
+      }
+    }
+
+    function showPosition(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      console.log('Latitude:', latitude);
+      console.log('Longitude:', longitude);
+
+      $('#lat').val(latitude);
+      $('#lng').val(longitude);
+
+      // Do something with the coordinates
+    }
+
+    function showError(error) {
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          console.error('User denied the request for Geolocation.');
+          break;
+        case error.POSITION_UNAVAILABLE:
+          console.error('Location information is unavailable.');
+          break;
+        case error.TIMEOUT:
+          console.error('The request to get user location timed out.');
+          break;
+        case error.UNKNOWN_ERROR:
+          console.error('An unknown error occurred.');
+          break;
+      }
+    }
+  </script>
+
+
+
+
+
+
 
   <script>
+
+    function saveData() {
+      const writerInput = document.getElementById('writer');
+      const serialNumberInput = document.getElementById('serialNumber');
+      const customerInput = document.getElementById('customer');
+      const bizTypeInput = document.getElementById('bizType');
+      const floorInput = document.getElementById('floor');
+      const remarkInput = document.getElementById('remark');
+
+      const lat = document.getElementById('lat');
+      const lng = document.getElementById('lng');
+      const size = document.getElementById('size');
+      const people = document.getElementById('people');            
+
+      const data = {
+        writer: writerInput.value,
+        serialNumber: serialNumberInput.value,
+        lat: lat.value,
+        lng: lng.value,
+        customer: customerInput.value,
+        bizType: bizTypeInput.value,
+        floor: floorInput.value,
+        size: size.value,
+        people: people.value,
+        floor: floorInput.value,
+        remark: remarkInput.value
+      };
+
+      const url = 'https://mydomain.kr/regdevice';
+
+      console.log(JSON.stringify(data));
+      // {"writer":"홍길동","serialNumber":"5SrWNK441bepw8Ay1MEhvQ==","lat":"37.5923224","lng":"127.0496651","customer":"노원구","bizType":"어린이집","floor":"10","size":"10","people":"10","remark":"설명"}
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          if (xhr.status === 200) {
+            const responseData = JSON.parse(xhr.responseText);
+            console.log('Data saved:', responseData);
+            // Handle the server response as needed
+          } else {
+            console.error('Error saving data:', xhr.status);
+            // Handle the error
+          }
+        }
+      };
+      xhr.send(JSON.stringify(data));
+    }
+
+
     // Check if the Web Bluetooth API is supported
     if ('bluetooth' in navigator) {
       const scanButton = document.getElementById('scanButton');
@@ -26,7 +162,22 @@
       let selectedCharacteristic;
       let readingInterval;
       let stopReading = false;
-      let dataCSV = `Time: pm25, pm10,temp,humd,co,ch4,co2,vocs\n`;
+      let dataCSV = `Time, pm25, pm10,temp,humd,co,ch4,co2,vocs\n`;
+      let ipAddress = null;  
+      /*  
+      fetch('https://www.ipaddress.my/')
+        .then(response => response.text())
+        .then(data => {
+            const ipRegex = /<font color="blue">([\d.:]+)<\/font>/;
+            const matches = data.match(ipRegex);
+            //const ipAddress = matches && matches[1] ? matches[1] : 'N/A';
+            ipAddress = matches && matches[1] ? matches[1] : 'N/A';
+            console.log('Your IP address is:', ipAddress);
+        }).catch(error => {
+            console.error('Error retrieving IP address:', error);
+      });
+      //*/
+
 
       scanButton.addEventListener('click', async () => {
         try {
@@ -39,13 +190,17 @@
           // Save the selected device
           selectedDevice = device;
 
+          serialNumber = selectedDevice.id;
+          $('#serialNumber').val(serialNumber);
+
+
           // Clear previous device list
           deviceList.innerHTML = '';
 
           // Display the list of devices
           const listItem = document.createElement('li');
           listItem.textContent = selectedDevice.name || 'Unnamed Device';
-          deviceList.appendChild(listItem);
+          deviceList.appendChild(listItem );//+ "/" + ipAddress);
 
           console.log('Scan complete');
         } catch (error) {
@@ -119,6 +274,7 @@
           // Convert the value to an array of integers
           const data = new Uint8Array(value.buffer);
 
+          
           arr = Array.from(data);
           var pm25 = arr[0]*256+arr[1];
           var pm10 = arr[2]*256+arr[3];
@@ -160,9 +316,61 @@
         link.setAttribute('download', 'bluetooth_data.csv');
         link.click();
       }
+
     } else {
       console.error('Web Bluetooth API is not supported in this browser.');
     }
   </script>
 </body>
 </html>
+
+<!--
+node
+const express = require('express');
+const mysql = require('mysql');
+const bodyParser = require('body-parser');
+
+const app = express();
+const port = 3000;
+
+// MySQL database connection configuration
+const dbConfig = {
+  host: 'mydomain',
+  port: 3306,
+  database: 'myinstance',
+  user: 'myid',
+  password: '!Q2w3e4r'
+};
+
+// Create a MySQL connection pool
+const pool = mysql.createPool(dbConfig);
+
+// Middleware for parsing JSON request body
+app.use(bodyParser.json());
+
+// API route for saving JSON data
+app.post('/api/save', (req, res) => {
+  const jsonData = req.body;
+
+  // Construct the SQL query
+  const query = 'INSERT INTO your_table_name SET ?';
+
+  // Execute the query with the JSON data
+  pool.query(query, jsonData, (err, result) => {
+    if (err) {
+      console.error('Error saving data:', err);
+      res.status(500).json({ error: 'An error occurred while saving the data.' });
+    } else {
+      console.log('Data saved:', result);
+      res.status(200).json({ message: 'Data saved successfully.' });
+    }
+  });
+});
+
+// Start the server
+app.listen(port, () => {
+  console.log(`Server is running on port ${port}`);
+});
+
+
+-->
